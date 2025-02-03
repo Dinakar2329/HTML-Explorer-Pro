@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Analyzer - With Deduplication</title>
+    <style>
+        /* Previous styles remain the same */
+        :root {
+            --primary-color: #2563eb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-700: #374151;
+            --green-600: #059669;
+            --orange-600: #ea580c;
+            --blue-600: #2563eb;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        body {
+            background-color: #f8fafc;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .card-content {
+            padding: 1.5rem;
+        }
+
+        .textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 1rem;
+            border: 1px solid var(--gray-200);
+            border-radius: 6px;
+            font-family: monospace;
+            resize: vertical;
+            margin-bottom: 1rem;
+        }
+
+        .textarea:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        .summary-section {
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .summary-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--gray-700);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+        }
+
+        .summary-item {
+            background: var(--gray-100);
+            padding: 1rem;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .count-badge {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+        }
+
+        .alert {
+            background-color: #fee2e2;
+            border: 1px solid #ef4444;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">HTML Analyzer</h2>
+            </div>
+            <div class="card-content">
+                <textarea id="htmlInput" class="textarea" placeholder="Paste your HTML code here..."></textarea>
+            </div>
+        </div>
+
+        <div id="results" class="card" style="display: none;">
+            <div class="card-header">
+                <h2 class="card-title">Analysis Results</h2>
+            </div>
+            <div class="card-content" id="resultsContent"></div>
+        </div>
+
+        <div id="error" class="alert" style="display: none;">
+            No valid HTML elements found. Please check your input.
+        </div>
+    </div>
+
+    <script>
+        const htmlInput = document.getElementById('htmlInput');
+        const results = document.getElementById('results');
+        const resultsContent = document.getElementById('resultsContent');
+        const error = document.getElementById('error');
+
+        function analyzeHTML(html) {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
+                
+                const analysis = {
+                    tags: new Map(),
+                    classes: new Map(),
+                    ids: new Map()
+                };
+
+                function processNode(node) {
+                    if (node.nodeType === 1) { // Element node
+                        // Count tags
+                        const tag = node.tagName.toLowerCase();
+                        analysis.tags.set(tag, (analysis.tags.get(tag) || 0) + 1);
+                        
+                        // Count classes
+                        node.classList.forEach(className => {
+                            analysis.classes.set(className, (analysis.classes.get(className) || 0) + 1);
+                        });
+                        
+                        // Count IDs
+                        if (node.id) {
+                            analysis.ids.set(node.id, (analysis.ids.get(node.id) || 0) + 1);
+                        }
+                        
+                        // Process child nodes
+                        node.childNodes.forEach(child => processNode(child));
+                    }
+                }
+
+                doc.body.childNodes.forEach(node => processNode(node));
+                return analysis;
+            } catch (error) {
+                console.error('Error parsing HTML:', error);
+                return null;
+            }
+        }
+
+        function createSummarySection(title, items, className) {
+            if (items.size === 0) return '';
+            
+            const itemsHTML = Array.from(items.entries())
+                .sort((a, b) => b[1] - a[1]) // Sort by count in descending order
+                .map(([name, count]) => `
+                    <div class="summary-item">
+                        <span class="${className}">${name}</span>
+                        <span class="count-badge">${count}</span>
+                    </div>
+                `).join('');
+
+            return `
+                <div class="summary-section">
+                    <h3 class="summary-title">${title} (${items.size} unique)</h3>
+                    <div class="summary-grid">
+                        ${itemsHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderAnalysis(analysis) {
+            const tagsSection = createSummarySection('Tags', analysis.tags, 'tag');
+            const classesSection = createSummarySection('Classes', analysis.classes, 'class');
+            const idsSection = createSummarySection('IDs', analysis.ids, 'id');
+            
+            return `
+                ${tagsSection}
+                ${classesSection}
+                ${idsSection}
+            `;
+        }
+
+        htmlInput.addEventListener('input', (e) => {
+            const input = e.target.value.trim();
+            
+            if (!input) {
+                results.style.display = 'none';
+                error.style.display = 'none';
+                return;
+            }
+
+            const analysis = analyzeHTML(input);
+
+            if (analysis && (analysis.tags.size > 0 || analysis.classes.size > 0 || analysis.ids.size > 0)) {
+                resultsContent.innerHTML = renderAnalysis(analysis);
+                results.style.display = 'block';
+                error.style.display = 'none';
+            } else {
+                results.style.display = 'none';
+                error.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

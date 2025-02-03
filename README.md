@@ -156,15 +156,11 @@ Maintained by the HTML Explorer Pro team
 - [FAQ](docs/faq.md)
 
 ### For Developers
-- [API Documentation](docs/api.md)
 - [Contributing Guide](docs/CONTRIBUTING.md)
-- [Code of Conduct](docs/CODE_OF_CONDUCT.md)
 
 ## Community
 
-- [GitHub Discussions](https://github.com/yourusername/html-explorer-pro/discussions)
-- [Stack Overflow Tag](https://stackoverflow.com/questions/tagged/html-explorer-pro)
-- [Discord Community](https://discord.gg/htmlexplorerpro)
+- [GitHub Discussions](https://github.com/dinakar2329/html-explorer-pro/discussions)
 
 ---
 

@@ -69,9 +69,6 @@ html-explorer-pro/
 ├── index.html          # Main application file
 ├── README.md          # Documentation
 ├── LICENSE           # MIT License
-├── assets/          # Project assets
-│   ├── images/     # Brand images and icons
-│   └── fonts/      # Brand fonts
 └── docs/           # Additional documentation
     └── CONTRIBUTING.md
 ```

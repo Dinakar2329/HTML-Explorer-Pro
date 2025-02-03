@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTML Analyzer - With Deduplication</title>
+    <title>HTML Analyzer - With Order Preservation</title>
     <style>
         /* Previous styles remain the same */
         :root {
@@ -72,6 +72,26 @@
             outline-offset: 2px;
         }
 
+        .button {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+        }
+
+        .button:hover {
+            background-color: #1d4ed8;
+        }
+
+        .button:disabled {
+            background-color: var(--gray-200);
+            cursor: not-allowed;
+        }
+
         .summary-section {
             margin-bottom: 2rem;
             padding-bottom: 1rem;
@@ -85,10 +105,10 @@
             color: var(--gray-700);
         }
 
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 1rem;
+        .summary-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
         }
 
         .summary-item {
@@ -106,6 +126,8 @@
             padding: 0.25rem 0.5rem;
             border-radius: 9999px;
             font-size: 0.875rem;
+            min-width: 2rem;
+            text-align: center;
         }
 
         .alert {
@@ -116,6 +138,10 @@
             border-radius: 6px;
             margin-top: 1rem;
         }
+
+        .element-tag { color: var(--blue-600); }
+        .element-class { color: var(--green-600); }
+        .element-id { color: var(--orange-600); }
 
         @media (max-width: 640px) {
             body {
@@ -132,6 +158,7 @@
             </div>
             <div class="card-content">
                 <textarea id="htmlInput" class="textarea" placeholder="Paste your HTML code here..."></textarea>
+                <button id="analyzeBtn" class="button">Analyze HTML</button>
             </div>
         </div>
 
@@ -149,6 +176,7 @@
 
     <script>
         const htmlInput = document.getElementById('htmlInput');
+        const analyzeBtn = document.getElementById('analyzeBtn');
         const results = document.getElementById('results');
         const resultsContent = document.getElementById('resultsContent');
         const error = document.getElementById('error');
@@ -160,24 +188,39 @@
                 
                 const analysis = {
                     tags: new Map(),
-                    classes: new Map(),
-                    ids: new Map()
+                    classes: new Set(),
+                    ids: new Set(),
+                    orderedTags: [],
+                    orderedClasses: [],
+                    orderedIds: []
                 };
 
                 function processNode(node) {
                     if (node.nodeType === 1) { // Element node
-                        // Count tags
+                        // Skip head and its children
+                        if (node.tagName.toLowerCase() === 'head') return;
+                        
+                        // Process tags
                         const tag = node.tagName.toLowerCase();
+                        analysis.orderedTags.push(tag);
                         analysis.tags.set(tag, (analysis.tags.get(tag) || 0) + 1);
                         
-                        // Count classes
-                        node.classList.forEach(className => {
-                            analysis.classes.set(className, (analysis.classes.get(className) || 0) + 1);
-                        });
+                        // Process classes
+                        if (node.classList.length > 0) {
+                            node.classList.forEach(className => {
+                                if (!analysis.classes.has(className)) {
+                                    analysis.orderedClasses.push(className);
+                                    analysis.classes.add(className);
+                                }
+                            });
+                        }
                         
-                        // Count IDs
+                        // Process IDs
                         if (node.id) {
-                            analysis.ids.set(node.id, (analysis.ids.get(node.id) || 0) + 1);
+                            if (!analysis.ids.has(node.id)) {
+                                analysis.orderedIds.push(node.id);
+                                analysis.ids.add(node.id);
+                            }
                         }
                         
                         // Process child nodes
@@ -193,22 +236,37 @@
             }
         }
 
-        function createSummarySection(title, items, className) {
-            if (items.size === 0) return '';
+        function createSummarySection(title, items, orderedItems, type) {
+            if (orderedItems.length === 0) return '';
             
-            const itemsHTML = Array.from(items.entries())
-                .sort((a, b) => b[1] - a[1]) // Sort by count in descending order
-                .map(([name, count]) => `
+            const itemsHTML = orderedItems.map(name => {
+                const count = type === 'tag' ? items.get(name) : 1;
+                let displayName;
+                
+                switch(type) {
+                    case 'tag':
+                        displayName = `<span class="element-tag">${name}</span>`;
+                        break;
+                    case 'class':
+                        displayName = `<span class="element-class">.${name}</span>`;
+                        break;
+                    case 'id':
+                        displayName = `<span class="element-id">#${name}</span>`;
+                        break;
+                }
+                
+                return `
                     <div class="summary-item">
-                        <span class="${className}">${name}</span>
+                        ${displayName}
                         <span class="count-badge">${count}</span>
                     </div>
-                `).join('');
+                `;
+            }).join('');
 
             return `
                 <div class="summary-section">
-                    <h3 class="summary-title">${title} (${items.size} unique)</h3>
-                    <div class="summary-grid">
+                    <h3 class="summary-title">${title} (${orderedItems.length} ${type === 'tag' ? 'total' : 'unique'})</h3>
+                    <div class="summary-list">
                         ${itemsHTML}
                     </div>
                 </div>
@@ -216,9 +274,9 @@
         }
 
         function renderAnalysis(analysis) {
-            const tagsSection = createSummarySection('Tags', analysis.tags, 'tag');
-            const classesSection = createSummarySection('Classes', analysis.classes, 'class');
-            const idsSection = createSummarySection('IDs', analysis.ids, 'id');
+            const tagsSection = createSummarySection('Tags', analysis.tags, analysis.orderedTags, 'tag');
+            const classesSection = createSummarySection('Classes', null, analysis.orderedClasses, 'class');
+            const idsSection = createSummarySection('IDs', null, analysis.orderedIds, 'id');
             
             return `
                 ${tagsSection}
@@ -227,8 +285,8 @@
             `;
         }
 
-        htmlInput.addEventListener('input', (e) => {
-            const input = e.target.value.trim();
+        analyzeBtn.addEventListener('click', () => {
+            const input = htmlInput.value.trim();
             
             if (!input) {
                 results.style.display = 'none';
@@ -238,7 +296,7 @@
 
             const analysis = analyzeHTML(input);
 
-            if (analysis && (analysis.tags.size > 0 || analysis.classes.size > 0 || analysis.ids.size > 0)) {
+            if (analysis && (analysis.orderedTags.length > 0 || analysis.orderedClasses.length > 0 || analysis.orderedIds.length > 0)) {
                 resultsContent.innerHTML = renderAnalysis(analysis);
                 results.style.display = 'block';
                 error.style.display = 'none';
@@ -246,6 +304,11 @@
                 results.style.display = 'none';
                 error.style.display = 'block';
             }
+        });
+
+        // Enable/disable analyze button based on input
+        htmlInput.addEventListener('input', () => {
+            analyzeBtn.disabled = htmlInput.value.trim() === '';
         });
     </script>
 </body>
